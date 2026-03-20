@@ -1,5 +1,7 @@
 """Dedicated rendering module for board and UI drawing."""
 
+from pathlib import Path
+
 import pygame
 
 from entities.tetromino import SHAPES
@@ -50,6 +52,29 @@ class Renderer:
         self.title_font: pygame.font.Font = pygame.font.SysFont("Arial", 28, bold=True)
         self.small_font: pygame.font.Font = pygame.font.SysFont("Arial", 16)
         self.decor_font: pygame.font.Font = pygame.font.SysFont("Arial", 18, bold=True)
+        self.cat_sprites: dict[TetrominoType, pygame.Surface] = self._load_cat_sprites()
+
+    def _load_cat_sprites(self) -> dict[TetrominoType, pygame.Surface]:
+        """Load optional cat sprites from assets folder.
+
+        Expected files:
+            assets/cats/cat_I.png ... assets/cats/cat_L.png
+
+        Returns:
+            Dictionary of available sprite surfaces keyed by piece type.
+        """
+        sprites: dict[TetrominoType, pygame.Surface] = {}
+        assets_root: Path = Path("assets") / "cats"
+        for piece_type in ("I", "O", "T", "S", "Z", "J", "L"):
+            sprite_path: Path = assets_root / f"cat_{piece_type}.png"
+            if not sprite_path.exists():
+                continue
+            try:
+                loaded: pygame.Surface = pygame.image.load(str(sprite_path)).convert_alpha()
+                sprites[piece_type] = loaded
+            except pygame.error:
+                continue
+        return sprites
 
     def render(self, context: GameContext) -> None:
         """Render one frame from game context.
@@ -205,6 +230,8 @@ class Renderer:
         """Draw an upright tiara cat: head in one block, body and front paws in the block below."""
         grid_cells: set[tuple[int, int]] = {(px // TILE_SIZE, py // TILE_SIZE) for px, py in occupied_tiles}
         head_cell, body_cell = self._pick_head_and_body_cells(grid_cells)
+        if self._draw_cat_sprite_if_available(piece_type, head_cell, body_cell):
+            return
         head_gc, head_gr = head_cell
         body_gc, body_gr = body_cell
 
@@ -344,6 +371,51 @@ class Renderer:
         ]
         pygame.draw.polygon(self.surface, (255, 220, 130), tiara)
         pygame.draw.polygon(self.surface, (205, 156, 72), tiara, width=1)
+
+    def _draw_cat_sprite_if_available(
+        self,
+        piece_type: str,
+        head_cell: tuple[int, int],
+        body_cell: tuple[int, int],
+    ) -> bool:
+        """Draw cat sprite for a piece if image exists.
+
+        Args:
+            piece_type: Tetromino piece identifier.
+            head_cell: Selected head cell grid coordinate.
+            body_cell: Selected body cell grid coordinate.
+
+        Returns:
+            True if a sprite was drawn, else False.
+        """
+        if piece_type not in self.cat_sprites:
+            return False
+        sprite: pygame.Surface = self.cat_sprites[piece_type]
+        head_gx, head_gy = head_cell
+        body_gx, body_gy = body_cell
+        same_cell: bool = head_cell == body_cell
+        vertical_stack: bool = body_gy > head_gy and not same_cell
+
+        if vertical_stack:
+            draw_x: int = head_gx * TILE_SIZE
+            draw_y: int = head_gy * TILE_SIZE
+            target_w: int = TILE_SIZE
+            target_h: int = TILE_SIZE * 2
+        elif same_cell:
+            draw_x = head_gx * TILE_SIZE
+            draw_y = head_gy * TILE_SIZE
+            target_w = TILE_SIZE
+            target_h = TILE_SIZE
+        else:
+            min_x: int = min(head_gx, body_gx) * TILE_SIZE
+            draw_x = min_x
+            draw_y = min(head_gy, body_gy) * TILE_SIZE
+            target_w = TILE_SIZE * 2
+            target_h = TILE_SIZE
+
+        scaled: pygame.Surface = pygame.transform.smoothscale(sprite, (target_w, target_h))
+        self.surface.blit(scaled, (draw_x, draw_y))
+        return True
 
     def _draw_mini_shape(
         self,
