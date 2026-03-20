@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 TetrominoType = Literal["I", "O", "T", "S", "Z", "J", "L"]
-PlayState = Literal["menu", "playing", "paused", "game_over"]
+PlayState = Literal["name_entry", "playing", "paused", "game_over", "high_scores"]
 InputAction = Literal[
     "move_left",
     "move_right",
@@ -15,6 +15,7 @@ InputAction = Literal[
     "hold",
     "toggle_pause",
     "start_game",
+    "backspace",
 ]
 
 
@@ -47,6 +48,14 @@ class GameMetrics:
 
 
 @dataclass
+class ScoreEntry:
+    """One high score row with player name."""
+
+    player_name: str
+    score: int
+
+
+@dataclass
 class PieceQueue:
     """Next and hold piece state."""
 
@@ -65,3 +74,5 @@ class GameContext:
     queue: PieceQueue
     metrics: GameMetrics
     play_state: PlayState
+    player_name: str
+    high_scores: list[ScoreEntry]

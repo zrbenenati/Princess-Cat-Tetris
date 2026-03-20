@@ -22,11 +22,11 @@ def run_game() -> None:
     game: TetrisGame = TetrisGame()
     running: bool = True
     while running:
-        actions, should_quit = handle_events()
+        actions, typed_text, should_quit = handle_events()
         if should_quit:
             running = False
             continue
         delta_seconds: float = clock.tick(FPS) / 1000.0
-        game.frame_update(delta_seconds, actions)
+        game.frame_update(delta_seconds, actions, typed_text)
         renderer.render(game.context)
     pygame.quit()

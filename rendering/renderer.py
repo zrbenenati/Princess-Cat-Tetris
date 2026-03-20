@@ -407,8 +407,13 @@ class Renderer:
             self.font.render(f"High: {context.metrics.high_score}", True, (142, 74, 109)),
             (x, 126),
         )
-        self.surface.blit(self.font.render("Next", True, (191, 103, 148)), (x, 170))
-        next_start_y: int = 190
+        if context.player_name.strip():
+            self.surface.blit(
+                self.small_font.render(f"Player: {context.player_name}", True, (142, 74, 109)),
+                (x, 150),
+            )
+        self.surface.blit(self.font.render("Next", True, (191, 103, 148)), (x, 172))
+        next_start_y: int = 194
         row_step: int = PREVIEW_SLOT_H + 4
         for idx, piece_type in enumerate(context.queue.next_pieces[:3]):
             slot_y: int = next_start_y + idx * row_step
@@ -455,28 +460,43 @@ class Renderer:
         overlay: pygame.Surface = pygame.Surface((BOARD_WIDTH * TILE_SIZE, BOARD_HEIGHT * TILE_SIZE), pygame.SRCALPHA)
         overlay.fill((111, 63, 92, 118))
         self.surface.blit(overlay, (0, 0))
-        if context.play_state == "menu":
-            self.surface.blit(self.title_font.render("Princess Cat Tetris", True, (255, 238, 246)), (24, 70))
-            instructions: list[str] = [
-                "How to play:",
-                "Left/Right: Move",
-                "Up / Z: Rotate",
-                "Down: Soft drop",
-                "Space: Hard drop",
-                "C: Hold piece",
-                "P: Pause",
-                "Clear lines to score and level up.",
-                "Press Enter to Start",
-            ]
-            for idx, line in enumerate(instructions):
-                self.surface.blit(
-                    self.small_font.render(line, True, (255, 245, 251)),
-                    (24, 118 + idx * 24),
-                )
-            self.surface.blit(self.small_font.render("Meow your way to a high score!", True, (255, 213, 238)), (24, 340))
+        if context.play_state == "name_entry":
+            self.surface.blit(self.title_font.render("Princess Cat Tetris", True, (255, 238, 246)), (24, 60))
+            self.surface.blit(self.font.render("Enter your player name:", True, (255, 245, 251)), (24, 110))
+            entry: str = context.player_name if context.player_name else "_"
+            self.surface.blit(self.font.render(entry, True, (255, 220, 245)), (24, 145))
+            self.surface.blit(
+                self.small_font.render("Press Enter to start", True, (255, 213, 238)),
+                (24, 180),
+            )
+            self.surface.blit(
+                self.small_font.render("Backspace deletes. Max 14 chars.", True, (255, 213, 238)),
+                (24, 205),
+            )
             return
-        elif context.play_state == "paused":
+        if context.play_state == "high_scores":
+            self.surface.blit(self.title_font.render("High Scores", True, (255, 238, 246)), (24, 60))
+            if not context.high_scores:
+                self.surface.blit(self.font.render("No scores yet.", True, (255, 245, 251)), (24, 110))
+            for idx, row in enumerate(context.high_scores[:8]):
+                text: str = f"{idx + 1:>2}. {row.player_name:<14} {row.score}"
+                self.surface.blit(self.small_font.render(text, True, (255, 245, 251)), (24, 105 + idx * 24))
+            self.surface.blit(
+                self.small_font.render("Press Enter to play again", True, (255, 213, 238)),
+                (24, 320),
+            )
+            return
+        if context.play_state == "paused":
             text = "Paused"
-        else:
-            text = "Game Over - Enter to Restart"
-        self.surface.blit(self.font.render(text, True, (255, 255, 255)), (24, 240))
+            self.surface.blit(self.font.render(text, True, (255, 255, 255)), (24, 240))
+            return
+        if context.play_state == "game_over":
+            self.surface.blit(self.font.render("Game Over", True, (255, 255, 255)), (24, 220))
+            self.surface.blit(
+                self.small_font.render("Press Enter for High Scores", True, (255, 213, 238)),
+                (24, 252),
+            )
+            return
+
+        self.surface.blit(self.title_font.render("Princess Cat Tetris", True, (255, 238, 246)), (24, 70))
+        self.surface.blit(self.small_font.render("Press Enter to continue", True, (255, 245, 251)), (24, 118))

@@ -14,16 +14,18 @@ KEYMAP: dict[int, InputAction] = {
     pygame.K_c: "hold",
     pygame.K_p: "toggle_pause",
     pygame.K_RETURN: "start_game",
+    pygame.K_BACKSPACE: "backspace",
 }
 
 
-def handle_events() -> tuple[list[InputAction], bool]:
+def handle_events() -> tuple[list[InputAction], str, bool]:
     """Read pygame events and map key presses into actions.
 
     Returns:
-        Tuple of (actions, should_quit).
+        Tuple of (actions, typed_text, should_quit).
     """
     actions: list[InputAction] = []
+    typed_text: str = ""
     should_quit: bool = False
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -32,4 +34,10 @@ def handle_events() -> tuple[list[InputAction], bool]:
             action: InputAction | None = KEYMAP.get(event.key)
             if action is not None:
                 actions.append(action)
-    return (actions, should_quit)
+            if (
+                event.unicode
+                and event.unicode.isprintable()
+                and event.key not in (pygame.K_RETURN, pygame.K_BACKSPACE)
+            ):
+                typed_text += event.unicode
+    return (actions, typed_text, should_quit)

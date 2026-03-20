@@ -3,9 +3,9 @@
 from dataclasses import replace
 
 from entities.tetromino import create_tetromino
-from game.high_score_store import read_high_score, write_high_score
+from game.high_score_store import read_high_scores, submit_score
 from game.state_machine import GameStateMachine
-from game.types import GameContext, GameMetrics, InputAction, PieceQueue, Tetromino
+from game.types import GameContext, GameMetrics, InputAction, PieceQueue, ScoreEntry, Tetromino
 from systems.collision_system import clone_piece, create_empty_board, has_collision, lock_piece
 from systems.hold_system import apply_hold
 from systems.line_clear_system import clear_lines
@@ -21,7 +21,8 @@ class TetrisGame:
 
     def __init__(self) -> None:
         self.state_machine: GameStateMachine = GameStateMachine()
-        high_score: int = read_high_score()
+        high_scores: list[ScoreEntry] = read_high_scores()
+        high_score: int = high_scores[0].score if high_scores else 0
         seeded_queue = ensure_queue([])
         active_piece, queue = spawn_piece(seeded_queue)
         self.context: GameContext = GameContext(
@@ -31,28 +32,41 @@ class TetrisGame:
             queue=PieceQueue(next_pieces=queue, hold_piece=None, can_hold=True),
             metrics=GameMetrics(score=0, level=1, lines_cleared=0, high_score=high_score),
             play_state=self.state_machine.get_state(),
+            player_name="",
+            high_scores=high_scores,
         )
         self.drop_accumulator: float = 0.0
         self.lock_accumulator: float = 0.0
         self._refresh_ghost()
 
-    def frame_update(self, delta_seconds: float, actions: list[InputAction]) -> None:
+    def frame_update(self, delta_seconds: float, actions: list[InputAction], typed_text: str) -> None:
         """Process one game frame.
 
         Args:
             delta_seconds: Frame delta time in seconds.
             actions: Input actions queued for this frame.
+            typed_text: Freeform text input typed this frame.
         """
-        self._handle_actions(actions)
+        self._handle_actions(actions, typed_text)
         self._update(delta_seconds)
 
-    def _handle_actions(self, actions: list[InputAction]) -> None:
+    def _handle_actions(self, actions: list[InputAction], typed_text: str) -> None:
+        if self.context.play_state == "name_entry":
+            self._apply_name_text(typed_text)
         for action in actions:
-            if action == "start_game" and self.context.play_state in ("menu", "game_over"):
-                self._reset_game()
-                self.state_machine.start()
+            if action == "start_game":
+                if self.context.play_state == "name_entry":
+                    if self.context.player_name.strip():
+                        self._reset_game()
+                        self.state_machine.start()
+                elif self.context.play_state == "game_over":
+                    self.state_machine.show_high_scores()
+                elif self.context.play_state == "high_scores":
+                    self.state_machine.name_entry()
             elif action == "toggle_pause":
                 self.state_machine.toggle_pause()
+            elif action == "backspace" and self.context.play_state == "name_entry":
+                self.context.player_name = self.context.player_name[:-1]
             self.context.play_state = self.state_machine.get_state()
             if self.context.play_state != "playing":
                 continue
@@ -120,9 +134,11 @@ class TetrisGame:
         if has_collision(self.context.board, self.context.active_piece):
             self.state_machine.game_over()
             self.context.play_state = self.state_machine.get_state()
-            if self.context.metrics.score > self.context.metrics.high_score:
-                self.context.metrics.high_score = self.context.metrics.score
-                write_high_score(self.context.metrics.high_score)
+            self.context.high_scores = submit_score(
+                self.context.player_name,
+                self.context.metrics.score,
+            )
+            self.context.metrics.high_score = self.context.high_scores[0].score if self.context.high_scores else 0
         self.lock_accumulator = 0.0
         self._refresh_ghost()
 
@@ -146,3 +162,15 @@ class TetrisGame:
         self.drop_accumulator = 0.0
         self.lock_accumulator = 0.0
         self._refresh_ghost()
+
+    def _apply_name_text(self, typed_text: str) -> None:
+        """Apply keyboard text input to the player-name field.
+
+        Args:
+            typed_text: New printable characters typed this frame.
+        """
+        if not typed_text:
+            return
+        cleaned: str = "".join(char for char in typed_text if char.isalnum() or char in (" ", "_", "-"))
+        max_len: int = 14
+        self.context.player_name = (self.context.player_name + cleaned)[:max_len]
